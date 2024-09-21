@@ -1,0 +1,61 @@
+service: jyoti-sls-app
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ap-southeast-1
+  httpApi:
+    cors: true
+
+functions:
+  api:
+    handler: index.handler
+    events:
+      - httpApi:
+          path: /
+          method: get
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - jyotiSQSQueue
+              - Arn
+          batchSize: 10
+          maximumBatchingWindow: 60
+          functionResponseType: ReportBatchItemFailures
+
+  rateHandler:
+    handler: handler.cronrun
+    events:
+      - schedule: cron(0/2 * ? * MON *)
+
+  s3Handler:
+    handler: index.handler1
+    events:
+      - httpApi:
+          path: /s3
+          method: get
+      - s3:
+          bucket: jyotis3
+          event: s3:ObjectCreated:*
+          rules:
+            - prefix: uploads/
+            - suffix: .jpg
+
+resources:
+  Resources:
+    jyotiSQSQueue:
+      Type: "AWS::SQS::Queue"
+      Properties:
+        QueueName: jyoti-sqs-queue
+
+    jyotiS3:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: jyotis31
+        WebsiteConfiguration:
+          IndexDocument: index.html
+          ErrorDocument: index.html
+
+plugins:
+  - serverless-offline
